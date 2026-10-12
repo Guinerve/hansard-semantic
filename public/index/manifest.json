@@ -1,0 +1,11 @@
+{
+  "model": "Xenova/all-MiniLM-L6-v2",
+  "dtype": "q8",
+  "dim": 384,
+  "count": 3430,
+  "from": "2025-07-01",
+  "to": "2026-09-17",
+  "house": "House of Representatives",
+  "source": "OpenAustralia scraped Hansard XML (data.openaustralia.org.au)",
+  "built": "2026-10-12"
+}

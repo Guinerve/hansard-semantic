@@ -1,0 +1,7 @@
+data/
+node_modules/
+dist/
+.vite/
+coverage/
+.env
+graphify-out/

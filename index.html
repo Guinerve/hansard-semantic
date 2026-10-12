@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hansard Semantic</title>
+  <meta name="description" content="Search Australian Parliament energy debates by meaning. Runs entirely in your browser." />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Hansard, by meaning</h1>
+    <p>Search House of Representatives energy debates by what they mean, not just the words used. Your query is embedded in this browser tab, so nothing leaves your device.</p>
+  </header>
+  <main>
+    <form id="form" role="search">
+      <input id="q" type="search" placeholder="e.g. who is worried about the cost of getting new transmission lines built?" autocomplete="off" aria-label="Search query" />
+      <button>Search</button>
+    </form>
+    <div class="examples" id="examples"></div>
+    <div class="filters">
+      <label>Party <select id="party"><option value="">All</option></select></label>
+      <span id="status" class="status" aria-live="polite">Loading index…</span>
+    </div>
+    <div id="results"></div>
+  </main>
+  <footer id="foot"></footer>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
