@@ -4,6 +4,8 @@
 
 **Status:** v0.1 core built; search verified end-to-end in real Chrome
 
+![hansard-semantic demo](assets/demo.gif)
+
 ![hansard-semantic screenshot](assets/screenshot.png)
 
 ## The idea
@@ -69,7 +71,7 @@ Hybrid keyword + semantic ranking; topic timeline view.
 
 ## Definition of done
 
-- [x] Hero GIF or screenshot at the top of this README (static screenshot; no GIF yet)
+- [x] Hero GIF or screenshot at the top of this README
 - [x] Live demo link or one-command run (`npm install && npm run dev`)
 - [ ] "How I know it's right" section filled in with real results
 - [ ] Tests passing in CI, badge added
