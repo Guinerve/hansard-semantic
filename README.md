@@ -2,7 +2,9 @@
 
 > Search Parliament by meaning, entirely in the browser, with no server.
 
-**Status:** v0.1 core built (search quality measured; the browser UI has not been run in a browser yet) · Portfolio project #9 · see `../README.md`
+**Status:** v0.1 core built; search verified end-to-end in real Chrome
+
+![hansard-semantic screenshot](assets/screenshot.png)
 
 ## The idea
 
@@ -18,7 +20,7 @@ Dev server binds to `0.0.0.0` on port **5193** so it's reachable over Tailscale 
 
 - [x] Fetch and chunk speeches: **House of Reps, 2025-07-01 to 2026-09-17, 85 sitting days, energy-related only → 3,430 passages.** Uses OpenAustralia's public scraped XML (`data.openaustralia.org.au`), so **no API key is needed**.
 - [x] Precompute embeddings with the same model used in the browser (`Xenova/all-MiniLM-L6-v2`, q8) → 1.3 MB int8 index + 4.3 MB text (1.2 MB gzipped). Done in **Node with transformers.js**, not Python, so the tokenizer and model are identical to the browser's. with the same model used in the browser; ship a compact index
-- [ ] (partly done) In-browser query embedding and cosine search (Web Worker): written and builds; not yet run in a browser.
+- [ ] (partly done) In-browser query embedding and cosine search (Web Worker): verified in Chrome (see below).
 - [x] Results with speaker, date, party, electorate and a link to the source, plus a party filter
 
 ## Run it
@@ -42,7 +44,7 @@ npm test         # 3 tests; downloads the model on first run
 
 Review fixes: the search is gated on both the model and the index; load, worker and fetch failures stay visible instead of "loading…"; the index builder refuses to overwrite with an empty result; the test writes `data/` itself so CI works on a fresh checkout.
 
-**Not verified:** the browser/Node parity. Both use transformers.js with the same q8 model, but onnxruntime-web (browser) and onnxruntime-node were not compared.
+Browser/Node parity: see the browser check below.
 
 ## Limits
 
@@ -50,9 +52,14 @@ The production bundle includes the onnxruntime WASM (~27 MB, ~6.8 MB gzipped), a
 
 One corpus slice; model size and index size trade off against load time.
 
+## Browser check
+
+Checked in real Chrome (headless, driven with puppeteer) on 2026-10-12: the model downloads and loads in a Web Worker, the index loads (3,430 passages, party filter populated), and a query returns 8 results in ~30 ms. **Browser/Node parity confirmed in practice**: for two queries the browser's top results and scores match Node's (scores within 0.01, same passages).
+
+**Quality caveat:** this small model ignores negation. "Why nuclear is not the answer" returns passages about nuclear power in general, top score only 0.42. Consider a larger model or a hybrid keyword + semantic rank.
+
 ## Next (tomorrow)
 
-- Run it in a browser: model download, worker, results, timing.
 - Harder evaluation set; try a bigger model (bge-small) if hit quality is poor.
 - Decide on index size vs. coverage (widen the date range).
 
@@ -62,7 +69,7 @@ Hybrid keyword + semantic ranking; topic timeline view.
 
 ## Definition of done
 
-- [ ] Hero GIF or screenshot at the top of this README
+- [x] Hero GIF or screenshot at the top of this README (static screenshot; no GIF yet)
 - [x] Live demo link or one-command run (`npm install && npm run dev`)
 - [ ] "How I know it's right" section filled in with real results
 - [ ] Tests passing in CI, badge added
