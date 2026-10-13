@@ -31,7 +31,7 @@ const worker = new Worker(new URL("./embed-worker.ts", import.meta.url), { type:
 worker.onmessage = (e: MessageEvent) => {
   const m = e.data;
   if (failure) return;
-  if (m.type === "progress") $("#status").textContent = `Downloading model… ${Math.round(m.progress)}%`;
+  if (m.type === "progress") $("#status").textContent = `Downloading the search model: ${Math.round(m.progress)}%`;
   else if (m.type === "ready") { modelReady = true; performance.mark("model-ready"); announce(); }
   else if (m.type === "embedding") { pending.get(m.id)?.ok(m.vector); pending.delete(m.id); }
   else if (m.type === "error") {
@@ -39,10 +39,10 @@ worker.onmessage = (e: MessageEvent) => {
     if (m.fatal) fail(`Could not load the search model: ${m.message}`);
   }
 };
-worker.onerror = (e) => fail(`The search worker crashed: ${e.message || "unknown error"}`);
-worker.onmessageerror = () => fail("The search worker returned unreadable data. Reload the page to retry.");
+worker.onerror = (e) => fail(`The search worker stopped: ${e.message || "unknown error"}. Reload the page to try again.`);
+worker.onmessageerror = () => fail("The search worker sent data the page cannot read. Reload the page to try again.");
 function announce(): void {
-  if (ready()) $("#status").textContent = `${chunks.length.toLocaleString()} passages ready`;
+  if (ready()) $("#status").textContent = `${chunks.length.toLocaleString()} passages ready to search`;
 }
 const embed = (text: string) => new Promise<Float32Array>((ok, err) => { const id = nextId++; pending.set(id, { ok, err }); worker.postMessage({ type: "embed", id, text }); });
 
@@ -60,14 +60,14 @@ async function init(): Promise<void> {
     fetch(`${base}index/embeddings.i8`).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status} for embeddings`); return r.arrayBuffer(); }),
   ]);
   chunks = c; index = new Int8Array(buf);
-  if (index.length !== chunks.length * manifest.dim) throw new Error("index and passages do not match (corrupt or mixed build)");
+  if (index.length !== chunks.length * manifest.dim) throw new Error("the vectors and passages do not match (the index files are damaged or come from different builds)");
   keywords = buildBm25(chunks.map((x) => x.text)); // keyword half of the hybrid ranking, built locally (~50 ms)
   indexReady = true;
   performance.mark("index-ready");
   const parties = [...new Set(chunks.map((x) => x.party).filter(Boolean))].sort();
   const sel = $<HTMLSelectElement>("#party");
   parties.forEach((p) => sel.add(new Option(p, p)));
-  $("#foot").textContent = `${manifest.house} Hansard, ${manifest.from} to ${manifest.to}, energy-related speeches only (${manifest.count.toLocaleString()} passages). Ranking: ${manifest.model} (${manifest.dtype}) embeddings running locally, fused with BM25 keyword scores. Source: ${manifest.source}. Built ${(manifest as Manifest & { built?: string }).built ?? ""}.`;
+  $("#foot").textContent = `${manifest.house} Hansard from ${manifest.from} to ${manifest.to}: ${manifest.count.toLocaleString()} passages from speeches about energy. Ranking: ${manifest.model} (${manifest.dtype}) embeddings run in this browser and are combined with BM25 keyword scores. Source: ${manifest.source}.${(manifest as Manifest & { built?: string }).built ? ` Index built ${(manifest as Manifest & { built?: string }).built}.` : ""}`;
   announce();
 }
 
@@ -75,7 +75,7 @@ async function search(q: string): Promise<void> {
   const version = ++searchVersion;
   if (failure) { $("#status").textContent = failure; return; }
   if (!q.trim()) { $("#results").replaceChildren(); announce(); return; }
-  if (!ready()) { $("#status").textContent = "Still loading the model and index…"; return; }
+  if (!ready()) { $("#status").textContent = "The model and index are still loading. Try again in a moment."; return; }
   const party = $<HTMLSelectElement>("#party").value;
   const t0 = performance.now();
   let qv: Float32Array;
@@ -89,7 +89,7 @@ async function search(q: string): Promise<void> {
   const t2 = performance.now();
   performance.measure("embed", { start: t0, end: t1 });
   performance.measure("rank", { start: t1, end: t2 });
-  $("#status").textContent = `${hits.length} results in ${(t2 - t0).toFixed(0)} ms`;
+  $("#status").textContent = `${hits.length} ${hits.length === 1 ? "result" : "results"} in ${(t2 - t0).toFixed(0)} ms`;
   $("#results").innerHTML = renderResults(hits, chunks, bestCosine);
 }
 

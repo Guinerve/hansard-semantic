@@ -85,7 +85,7 @@ async function runQueries(page, queries) {
     await page.$eval("#q", (el, v) => { el.value = v; }, q.query);
     await page.$eval("#status", (el) => { el.textContent = ""; });
     await page.click("#form button");
-    await page.waitForFunction(() => /results in|failed/.test(document.querySelector("#status")?.textContent ?? ""));
+    await page.waitForFunction(() => /results? in|failed/.test(document.querySelector("#status")?.textContent ?? ""));
     const r = await page.evaluate(() => ({
       embed: performance.getEntriesByName("embed").at(-1)?.duration,
       rank: performance.getEntriesByName("rank").at(-1)?.duration,
@@ -181,19 +181,19 @@ const r = result, s = (ms) => (ms / 1000).toFixed(1) + " s";
 const host = (b) => Object.entries(b).filter(([h, n]) => h && n > 1000).map(([h, n]) => `${h} ${mb(n)} MB`).join(", ") || "≈0 (all cached)";
 const md = [
   `# Browser benchmark`, ``,
-  `Measured ${r.date.slice(0, 10)} by \`npm run bench\` on ${r.chrome} (headless), ${r.os}, ${r.cpu} (${r.cores} cores), serving the production build from \`vite preview\`. The model comes from Hugging Face over this machine's real internet connection, so cold-load times depend on it.`, ``,
+  `Measured ${r.date.slice(0, 10)} by \`npm run bench\` on ${r.chrome} (headless), ${r.os}, ${r.cpu} (${r.cores} cores), serving the production build from \`vite preview\`. The model comes from Hugging Face over the real internet connection of this machine, so cold load times depend on that connection.`, ``,
   `| | Cold (empty cache) | Warm (reload, same profile) |`, `|---|---|---|`,
   `| Index ready (passages + vectors loaded, BM25 built) | ${s(r.cold.indexReadyMs)} | ${s(r.warm.indexReadyMs)} |`,
   `| Model ready (search usable) | ${s(r.cold.modelReadyMs)} | ${s(r.warm.modelReadyMs)} |`,
   `| Transferred | ${host(r.cold.bytes)} | ${host(r.warm.bytes)} |`,
-  r.throttled ? `| Model ready on Chrome's "Fast 4G" preset (cold) | ${s(r.throttled.modelReadyMs)} | – |` : null,
-  ``, `Per query, over all ${r.queries.n} labelled queries typed into the search box (after one warm-up query):`, ``,
+  r.throttled ? `| Model ready on Chrome's "Fast 4G" preset (cold) | ${s(r.throttled.modelReadyMs)} | n/a |` : null,
+  ``, `Per query, over all ${r.queries.n} labelled queries typed into the search box (after one query to warm up):`, ``,
   `| | p50 | p95 | max |`, `|---|---:|---:|---:|`,
   `| Embed query (Web Worker, q8 MiniLM) | ${r.queries.embedMs.p50.toFixed(1)} ms | ${r.queries.embedMs.p95.toFixed(1)} ms | ${r.queries.embedMs.max.toFixed(1)} ms |`,
   `| Rank (cosine over ${"3,430"} vectors + BM25 + fusion) | ${r.queries.rankMs.p50.toFixed(1)} ms | ${r.queries.rankMs.p95.toFixed(1)} ms | ${r.queries.rankMs.max.toFixed(1)} ms |`,
   `| Total | ${r.queries.totalMs.p50.toFixed(1)} ms | ${r.queries.totalMs.p95.toFixed(1)} ms | |`,
   ``, `Memory after the queries: main-thread JS heap ${r.memory.mainHeapUsedMB.toFixed(1)} MB${r.memory.workerHeapUsedMB !== null ? `, worker JS heap ${r.memory.workerHeapUsedMB.toFixed(1)} MB (the ONNX model weights live in WASM memory, which this does not count)` : ""}.`,
-  ``, `**Browser = Node:** the browser's top 8 overlaps the Node evaluation's top 8 by ${(100 * r.parity.meanOverlapAt8).toFixed(1)}% on average; ${r.parity.identicalTop8} of ${r.parity.n} queries return the identical ordered list. nDCG@8 over the ${r.quality.answerable} answerable queries: ${r.quality.browserNdcg8.toFixed(3)} from the browser's own result lists, ${r.quality.nodeNdcg8.toFixed(3)} from Node. The order differs because the browser (onnxruntime-web WASM) and Node (onnxruntime-node) compute slightly different q8 query embeddings: across ${r.parity.cosineDrift.n} displayed results the cosine differs from Node's by ${r.parity.cosineDrift.mean.toFixed(4)} on average (p95 ${r.parity.cosineDrift.p95.toFixed(3)}, max ${r.parity.cosineDrift.max.toFixed(3)}, including ±0.005 display rounding), which reorders near-ties before the rank fusion.`,
+  ``, `**Browser compared with Node:** the top 8 in the browser overlaps the top 8 from the Node evaluation by ${(100 * r.parity.meanOverlapAt8).toFixed(1)}% on average; ${r.parity.identicalTop8} of ${r.parity.n} queries return the identical ordered list. nDCG@8 over the ${r.quality.answerable} answerable queries: ${r.quality.browserNdcg8.toFixed(3)} from the result lists of the browser, ${r.quality.nodeNdcg8.toFixed(3)} from Node. The order differs because the browser (onnxruntime-web WASM) and Node (onnxruntime-node) compute slightly different q8 query embeddings. Across ${r.parity.cosineDrift.n} displayed results the cosine differs from the Node value by ${r.parity.cosineDrift.mean.toFixed(4)} on average (p95 ${r.parity.cosineDrift.p95.toFixed(3)}, max ${r.parity.cosineDrift.max.toFixed(3)}, including ±0.005 display rounding), which reorders near-ties before the rank fusion.`,
   r.cold.errors.length || r.warm.errors.length ? `\nConsole errors: ${[...r.cold.errors, ...r.warm.errors].join("; ")}` : `\nNo console or page errors.`,
 ].filter((l) => l !== null).join("\n");
 writeFileSync("eval/BROWSER.md", md + "\n");

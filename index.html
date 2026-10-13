@@ -4,24 +4,24 @@
   <meta charset="utf-8" />
   <link rel="icon" href="data:," />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Hansard Semantic</title>
-  <meta name="description" content="Search Australian Parliament energy debates by meaning. Runs entirely in your browser." />
+  <title>Hansard, by meaning</title>
+  <meta name="description" content="Search energy debates from the Australian House of Representatives by meaning. The search runs in your browser." />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
   <header>
     <h1>Hansard, by meaning</h1>
-    <p>Search House of Representatives energy debates with meaning and keyword ranking. Your query stays in this browser tab. The first visit downloads the model.</p>
+    <p>Search energy debates from the House of Representatives by meaning, not only by exact words. Your query stays in this browser tab. The first visit downloads a 23 MB model.</p>
   </header>
   <main>
     <form id="form" role="search">
-      <input id="q" type="search" placeholder="e.g. who is worried about the cost of getting new transmission lines built?" autocomplete="off" aria-label="Search query" />
+      <input id="q" type="search" placeholder="For example: who worries about the cost of new transmission lines?" autocomplete="off" aria-label="Search query" />
       <button>Search</button>
     </form>
     <div class="examples" id="examples"></div>
     <div class="filters">
       <label>Party <select id="party"><option value="">All</option></select></label>
-      <span id="status" class="status" aria-live="polite">Loading index…</span>
+      <span id="status" class="status" aria-live="polite">Loading the index…</span>
     </div>
     <div id="results"></div>
   </main>

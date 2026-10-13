@@ -40,7 +40,7 @@ function renderPane(): void {
         <div class="judge">${GRADES.map((g, k) => `<button type="button" data-grade="${k}" class="${grade === k && !(k === 0 && it.stance === "opposite") ? "on" : ""}">${g}</button>`).join("")}
           ${q.category === "negation" ? `<button type="button" data-grade="opp" class="${it.stance === "opposite" ? "on" : ""}">0 · opposite side</button>` : ""}
           <span class="who ${isHuman(it) ? "human" : ""}">${it.judge ? (isHuman(it) ? "human" : `draft (${esc(it.judge)})`) : "unjudged"}</span></div>
-        <h3>${esc(c.speaker)}</h3><div class="meta">${esc(c.party || "—")} · ${esc(c.date)} · ${esc(c.heading)} · ${esc(c.id)}</div><p>${esc(c.text)}</p></article>`;
+        <h3>${esc(c.speaker)}</h3><div class="meta">${esc(c.party || "No party")} · ${esc(c.date)} · ${esc(c.heading)} · ${esc(c.id)}</div><p>${esc(c.text)}</p></article>`;
     }).join("") : `<p class="notice">Nothing left to review for this query.</p>`);
   $(".result.focus")?.scrollIntoView({ block: "nearest" });
 }

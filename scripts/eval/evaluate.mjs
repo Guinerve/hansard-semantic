@@ -131,39 +131,39 @@ if (results.systems[BASE]) for (const name of systemNames) {
 writeFileSync("eval/results.json", JSON.stringify(results, null, 2) + "\n");
 
 // ---- Markdown report ----
-const f = (x, d = 3) => (x === undefined || Number.isNaN(x) ? "–" : x.toFixed(d));
+const f = (x, d = 3) => (x === undefined || Number.isNaN(x) ? "n/a" : x.toFixed(d));
 const judges = new Map();
 for (const m of qrels.values()) for (const j of m.values()) judges.set(j.judge, (judges.get(j.judge) ?? 0) + 1);
 const lines = [];
-lines.push(`# Retrieval evaluation`, ``, `Generated ${results.generated} by \`npm run eval\`. ${queries.length} queries (${ans.length} with at least one relevant passage), ${[...qrels.values()].reduce((s, m) => s + m.size, 0)} judgments (${[...judges].map(([k, v]) => `${v} ${k}`).join(", ")}).`, ``);
-if (judges.has("model-draft")) lines.push(`The model-draft labels have not been reviewed by a human. These scores are exploratory results, not an independent relevance benchmark.`, ``);
-lines.push(`## nDCG@10 by query type`, ``, `| System | ${CATS.join(" | ")} | All (95% CI) | Δ vs minilm (95% CI) |`, `|---|${CATS.map(() => "---:").join("|")}|---:|---:|`);
+lines.push(`# Retrieval evaluation`, ``, `Generated ${results.generated} by \`npm run eval\`. ${queries.length} queries (${ans.length} with at least one relevant passage), ${[...qrels.values()].reduce((s, m) => s + m.size, 0)} judgments (${[...judges].map(([k, v]) => `${v} \`${k}\``).join(", ")}).`, ``);
+if (judges.has("model-draft")) lines.push(`No person has reviewed the \`model-draft\` labels yet. Treat these scores as exploratory results. They are not an independent relevance benchmark.`, ``);
+lines.push(`## nDCG@10 by query type`, ``, `| System | ${CATS.join(" | ")} | All (95% CI) | Change from minilm (95% CI) |`, `|---|${CATS.map(() => "---:").join("|")}|---:|---:|`);
 for (const name of systemNames) {
   const s = results.systems[name];
   const d = s.vsShipped;
-  lines.push(`| ${label(name)} | ${CATS.map((c) => f(s.byCat[c].ndcg10)).join(" | ")} | ${f(s.byCat.all.ndcg10)} (${f(s.byCat.all.ndcg10CI[0], 2)}–${f(s.byCat.all.ndcg10CI[1], 2)}) | ${d ? `${d.meanDiff >= 0 ? "+" : ""}${f(d.meanDiff)} (${f(d.ci[0], 2)} to ${f(d.ci[1], 2)})` : "–"} |`);
+  lines.push(`| ${label(name)} | ${CATS.map((c) => f(s.byCat[c].ndcg10)).join(" | ")} | ${f(s.byCat.all.ndcg10)} (${f(s.byCat.all.ndcg10CI[0], 2)} to ${f(s.byCat.all.ndcg10CI[1], 2)}) | ${d ? `${d.meanDiff >= 0 ? "+" : ""}${f(d.meanDiff)} (${f(d.ci[0], 2)} to ${f(d.ci[1], 2)})` : "n/a"} |`);
 }
-lines.push(``, `## Other measures (answerable queries)`, ``, `| System | MRR@10 (first grade-2) | P@5 | Recall@20 (pooled) | Judged@10 | Known item: target in top 1 / 10 / 20 | Negation: wrong-stance share of top 10 |`, `|---|---:|---:|---:|---:|---:|---:|`);
+lines.push(``, `## Other measures (answerable queries)`, ``, `| System | MRR@10 (first grade 2) | P@5 | Recall@20 (pooled) | Judged@10 | Known item: target in top 1 / 10 / 20 | Negation: wrong-stance share of top 10 |`, `|---|---:|---:|---:|---:|---:|---:|`);
 for (const name of systemNames) {
   const s = results.systems[name];
   lines.push(`| ${label(name)} | ${f(s.byCat.all.mrr)} | ${f(s.byCat.all.p5)} | ${f(s.byCat.all.r20)} | ${f(s.byCat.all.judged10, 2)} | ${s.knownItem.hit1} / ${s.knownItem.hit10} / ${s.knownItem.hit20} of ${s.knownItem.n} | ${f(s.negation.wrongStance10)} |`);
 }
 if (noAns.length) {
-  lines.push(``, `## Can the score tell when there is no answer?`, ``, `${noAns.length} queries have no relevant passage at all (${noAns.map((q) => `\`${q.id}\``).join(", ")}). AUC = probability that an answerable query's top-1 score beats an unanswerable one's (1.0 = a threshold separates them perfectly; 0.5 = no signal). Only meaningful for cosine-scored systems.`, ``, `| System | AUC (no answer) | AUC (8 out-of-scope queries) | Mean top-1 (answerable) | Mean top-1 (no answer) | Highest top-1 with no answer | Lowest top-1 with an answer |`, `|---|---:|---:|---:|---:|---:|---:|`);
+  lines.push(``, `## Does the score show when there is no answer?`, ``, `${noAns.length} queries have no relevant passage at all (${noAns.map((q) => `\`${q.id}\``).join(", ")}). AUC is the probability that the top score of an answerable query is higher than the top score of a query with no answer. At 1.0 a threshold separates them perfectly. At 0.5 the score gives no signal. AUC applies only to systems that score by cosine.`, ``, `| System | AUC (no answer) | AUC (8 out-of-scope queries) | Mean top score (answerable) | Mean top score (no answer) | Highest top score with no answer | Lowest top score with an answer |`, `|---|---:|---:|---:|---:|---:|---:|`);
   for (const name of systemNames) {
     const s = results.systems[name].separation;
-   if (name === "bm25") lines.push(`| ${label(name)} | – | – | – | – | – | – |`);
+   if (name === "bm25") lines.push(`| ${label(name)} | n/a | n/a | n/a | n/a | n/a | n/a |`);
    else lines.push(`| ${label(name)} | ${f(s.auc)} | ${f(s.outOfScopeAuc)} | ${f(s.answerableTop1)} | ${f(s.unanswerableTop1)} | ${f(s.maxUnanswerableTop1)} | ${f(s.minAnswerableTop1)} |`);
   }
   const w = results.systems[SHIPPED]?.separation?.weakFlagged;
-  if (w) lines.push(``, `The site shows a "weak matches only" notice when the best cosine is below ${WEAK_MATCH}. On this set that flags ${w.unanswerable} of ${noAns.length} no-answer queries and ${w.answerable.length} of ${ans.length} answerable ones${w.answerable.length ? ` (${w.answerable.map((x) => `\`${x}\``).join(", ")})` : ""}. The threshold was chosen on this same set, so expect it to be slightly optimistic. Hybrid systems report the best embedding cosine in the collection here (what the site checks), not the fused score.`);
+  if (w) lines.push(``, `The site shows a "weak matches only" notice when the best cosine is below ${WEAK_MATCH}. On this set that flags ${w.unanswerable} of ${noAns.length} no-answer queries and ${w.answerable.length} of ${ans.length} answerable ones${w.answerable.length ? ` (${w.answerable.map((x) => `\`${x}\``).join(", ")})` : ""}. I chose the threshold on this same set, so expect it to be slightly optimistic. For hybrid systems this table uses the best embedding cosine in the collection, which is what the site checks. It does not use the fused score.`);
 }
 lines.push(``, `## Per query (nDCG@10)`, ``, `| Query | Type | ${systemNames.join(" | ")} |`, `|---|---|${systemNames.map(() => "---:").join("|")}|`);
 for (const q of queries) lines.push(`| \`${q.id}\` ${q.query} | ${q.category}${answerable(q) ? "" : " (no answer)"} | ${systemNames.map((n) => f(results.systems[n].perQuery[q.id].ndcg10, 2)).join(" | ")} |`);
 lines.push(``, `## How to read this`, ``,
-  `- Grades: 2 = answers the query, 1 = on topic but partial, 0 = not relevant. For negation queries a passage arguing the opposite side is graded 0 and flagged \`opposite\`.`,
-  `- Judgments were pooled (TREC style): the union of every system's top 10 per query was judged; anything never retrieved by any system is unjudged and counts as not relevant. Judged@10 shows how complete the labels are for each system's top 10. Recall@20 is relative to the pooled relevant set, so it overstates true recall.`,
-  `- MRR counts only grade-2 passages, so it measures "how far down is the first passage that actually answers the question".`,
-  `- The CIs are bootstrap intervals over queries (10,000 resamples); with ${ans.length} answerable queries they are wide. Treat differences whose interval crosses 0 as unproven.`);
+  `- Grades: 2 means the passage answers the query. 1 means it is on topic but partial. 0 means it is not relevant. For negation queries, a passage that argues the opposite side gets grade 0 and the flag \`opposite\`.`,
+  `- The judgments are pooled, as in TREC. For each query, the union of the top 10 from every system was judged. A passage that no system retrieved has no judgment and counts as not relevant. Judged@10 shows how complete the labels are for the top 10 of each system. Recall@20 uses the pooled relevant set, so it overstates true recall.`,
+  `- MRR counts only grade 2 passages. It shows how far down the list the first passage that answers the question appears.`,
+  `- The confidence intervals are bootstrap intervals over queries (10,000 resamples). With ${ans.length} answerable queries they are wide. If an interval includes 0, treat the difference as unproven.`);
 writeFileSync("eval/RESULTS.md", lines.join("\n") + "\n");
 console.log(lines.slice(0, 25).join("\n"));

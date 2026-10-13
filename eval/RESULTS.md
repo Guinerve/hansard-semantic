@@ -1,36 +1,36 @@
 # Retrieval evaluation
 
-Generated 2026-10-13 by `npm run eval`. 50 queries (47 with at least one relevant passage), 1487 judgments (1487 model-draft).
+Generated 2026-10-13 by `npm run eval`. 50 queries (47 with at least one relevant passage), 1487 judgments (1487 `model-draft`).
 
-The model-draft labels have not been reviewed by a human. These scores are exploratory results, not an independent relevance benchmark.
+No person has reviewed the `model-draft` labels yet. Treat these scores as exploratory results. They are not an independent relevance benchmark.
 
 ## nDCG@10 by query type
 
-| System | keyword | paraphrase | negation | known-item | All (95% CI) | Δ vs minilm (95% CI) |
+| System | keyword | paraphrase | negation | known-item | All (95% CI) | Change from minilm (95% CI) |
 |---|---:|---:|---:|---:|---:|---:|
-| minilm (v0.1 baseline) | 0.809 | 0.514 | 0.380 | 0.601 | 0.588 (0.52–0.67) | – |
-| bm25 | 0.742 | 0.471 | 0.489 | 0.494 | 0.558 (0.48–0.64) | -0.030 (-0.13 to 0.05) |
-| hybrid-minilm (shipped) | 0.842 | 0.571 | 0.468 | 0.682 | 0.659 (0.59–0.74) | +0.071 (0.01 to 0.12) |
+| minilm (v0.1 baseline) | 0.809 | 0.514 | 0.380 | 0.601 | 0.588 (0.52 to 0.67) | n/a |
+| bm25 | 0.742 | 0.471 | 0.489 | 0.494 | 0.558 (0.48 to 0.64) | -0.030 (-0.13 to 0.05) |
+| hybrid-minilm (shipped) | 0.842 | 0.571 | 0.468 | 0.682 | 0.659 (0.59 to 0.74) | +0.071 (0.01 to 0.12) |
 
 ## Other measures (answerable queries)
 
-| System | MRR@10 (first grade-2) | P@5 | Recall@20 (pooled) | Judged@10 | Known item: target in top 1 / 10 / 20 | Negation: wrong-stance share of top 10 |
+| System | MRR@10 (first grade 2) | P@5 | Recall@20 (pooled) | Judged@10 | Known item: target in top 1 / 10 / 20 | Negation: wrong-stance share of top 10 |
 |---|---:|---:|---:|---:|---:|---:|
 | minilm (v0.1 baseline) | 0.660 | 0.660 | 0.529 | 1.00 | 3 / 4 / 5 of 6 | 0.455 |
 | bm25 | 0.576 | 0.651 | 0.502 | 1.00 | 2 / 4 / 4 of 6 | 0.231 |
 | hybrid-minilm (shipped) | 0.665 | 0.728 | 0.608 | 1.00 | 3 / 3 / 4 of 6 | 0.334 |
 
-## Can the score tell when there is no answer?
+## Does the score show when there is no answer?
 
-3 queries have no relevant passage at all (`irr-afl`, `irr-dogs`, `irr-sourdough`). AUC = probability that an answerable query's top-1 score beats an unanswerable one's (1.0 = a threshold separates them perfectly; 0.5 = no signal). Only meaningful for cosine-scored systems.
+3 queries have no relevant passage at all (`irr-afl`, `irr-dogs`, `irr-sourdough`). AUC is the probability that the top score of an answerable query is higher than the top score of a query with no answer. At 1.0 a threshold separates them perfectly. At 0.5 the score gives no signal. AUC applies only to systems that score by cosine.
 
-| System | AUC (no answer) | AUC (8 out-of-scope queries) | Mean top-1 (answerable) | Mean top-1 (no answer) | Highest top-1 with no answer | Lowest top-1 with an answer |
+| System | AUC (no answer) | AUC (8 out-of-scope queries) | Mean top score (answerable) | Mean top score (no answer) | Highest top score with no answer | Lowest top score with an answer |
 |---|---:|---:|---:|---:|---:|---:|
 | minilm (v0.1 baseline) | 0.993 | 0.914 | 0.582 | 0.238 | 0.280 | 0.279 |
-| bm25 | – | – | – | – | – | – |
+| bm25 | n/a | n/a | n/a | n/a | n/a | n/a |
 | hybrid-minilm (shipped) | 0.993 | 0.914 | 0.582 | 0.238 | 0.280 | 0.279 |
 
-The site shows a "weak matches only" notice when the best cosine is below 0.3. On this set that flags 3 of 3 no-answer queries and 2 of 47 answerable ones (`para-ev`, `irr-visa`). The threshold was chosen on this same set, so expect it to be slightly optimistic. Hybrid systems report the best embedding cosine in the collection here (what the site checks), not the fused score.
+The site shows a "weak matches only" notice when the best cosine is below 0.3. On this set that flags 3 of 3 no-answer queries and 2 of 47 answerable ones (`para-ev`, `irr-visa`). I chose the threshold on this same set, so expect it to be slightly optimistic. For hybrid systems this table uses the best embedding cosine in the collection, which is what the site checks. It does not use the fused score.
 
 ## Per query (nDCG@10)
 
@@ -79,17 +79,17 @@ The site shows a "weak matches only" notice when the best cosine is below 0.3. O
 | `ki-sea-level` a quarter of a million homes at risk from rising seas by the end of the century | known-item | 0.83 | 0.44 | 0.72 |
 | `ki-fuel-cfd` underwriting fuel importers against losses if the oil price collapses | known-item | 0.00 | 0.51 | 0.42 |
 | `irr-gp` bulk billing rates for GP visits | irrelevant | 0.69 | 0.87 | 0.68 |
-| `irr-afl` who won the AFL grand final | irrelevant (no answer) | – | – | – |
-| `irr-dogs` penalties for owners of dangerous dogs | irrelevant (no answer) | – | – | – |
+| `irr-afl` who won the AFL grand final | irrelevant (no answer) | n/a | n/a | n/a |
+| `irr-dogs` penalties for owners of dangerous dogs | irrelevant (no answer) | n/a | n/a | n/a |
 | `irr-childcare` childcare subsidy for working parents | irrelevant | 1.00 | 0.00 | 0.57 |
-| `irr-sourdough` how to bake sourdough bread at home | irrelevant (no answer) | – | – | – |
+| `irr-sourdough` how to bake sourdough bread at home | irrelevant (no answer) | n/a | n/a | n/a |
 | `irr-visa` cancelling visas of non-citizens convicted of crimes | irrelevant | 0.29 | 0.50 | 1.00 |
 | `irr-uni` cutting student debt for university graduates | irrelevant | 0.55 | 0.69 | 0.73 |
 | `irr-socialmedia` banning children under 16 from social media | irrelevant | 0.53 | 0.83 | 0.91 |
 
 ## How to read this
 
-- Grades: 2 = answers the query, 1 = on topic but partial, 0 = not relevant. For negation queries a passage arguing the opposite side is graded 0 and flagged `opposite`.
-- Judgments were pooled (TREC style): the union of every system's top 10 per query was judged; anything never retrieved by any system is unjudged and counts as not relevant. Judged@10 shows how complete the labels are for each system's top 10. Recall@20 is relative to the pooled relevant set, so it overstates true recall.
-- MRR counts only grade-2 passages, so it measures "how far down is the first passage that actually answers the question".
-- The CIs are bootstrap intervals over queries (10,000 resamples); with 47 answerable queries they are wide. Treat differences whose interval crosses 0 as unproven.
+- Grades: 2 means the passage answers the query. 1 means it is on topic but partial. 0 means it is not relevant. For negation queries, a passage that argues the opposite side gets grade 0 and the flag `opposite`.
+- The judgments are pooled, as in TREC. For each query, the union of the top 10 from every system was judged. A passage that no system retrieved has no judgment and counts as not relevant. Judged@10 shows how complete the labels are for the top 10 of each system. Recall@20 uses the pooled relevant set, so it overstates true recall.
+- MRR counts only grade 2 passages. It shows how far down the list the first passage that answers the question appears.
+- The confidence intervals are bootstrap intervals over queries (10,000 resamples). With 47 answerable queries they are wide. If an interval includes 0, treat the difference as unproven.
