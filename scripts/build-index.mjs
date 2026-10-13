@@ -6,6 +6,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { pipeline } from "@huggingface/transformers";
+import { decodeNumericEntities } from "../src/text.ts";
 
 export const MODEL = "Xenova/all-MiniLM-L6-v2";
 const BASE = "https://data.openaustralia.org.au";
@@ -16,7 +17,7 @@ const ENERGY = /\b(energy|electricity|renewables?|solar|wind farms?|coal|gas|nuc
 const MIN_WORDS = 35;
 const CHUNK_WORDS = 170;
 
-const decode = (s) => s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n));
+const decode = (s) => decodeNumericEntities(s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'"));
 const stripTags = (s) => decode(s.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
 
 async function cached(path, url) {

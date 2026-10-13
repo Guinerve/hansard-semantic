@@ -23,6 +23,8 @@ export function labelServer() {
     name: "hansard-label-server",
     apply: "serve",
     configureServer(server) {
+      const queryIds = new Set(JSON.parse(readFileSync("eval/queries.json", "utf8")).map((q) => q.id));
+      const passageIds = new Set(JSON.parse(readFileSync("public/index/chunks.json", "utf8")).map((c) => c.id));
       server.middlewares.use("/__label/data", (req, res) => {
         const queries = JSON.parse(readFileSync("eval/queries.json", "utf8"));
         const pool = existsSync("data/pool.json") ? JSON.parse(readFileSync("data/pool.json", "utf8")) : {};
@@ -40,8 +42,14 @@ export function labelServer() {
       });
       server.middlewares.use("/__label/judge", async (req, res) => {
         if (req.method !== "POST") return json(res, 405, { error: "POST only" });
+        // The server is reachable on the tailnet. Do not accept writes from another website.
+        const expectedOrigin = `http://${req.headers.host}`;
+        if (req.headers.origin !== expectedOrigin || req.headers["content-type"] !== "application/json") {
+          return json(res, 403, { error: "same-origin JSON requests only" });
+        }
         try {
           const { query_id, passage_id, grade, stance } = await readBody(req);
+          if (!queryIds.has(query_id) || !passageIds.has(passage_id)) return json(res, 400, { error: "unknown query or passage" });
           if (![0, 1, 2].includes(grade) || !["", "opposite"].includes(stance ?? "")) return json(res, 400, { error: "bad grade or stance" });
           const qrels = readQrels();
           if (!qrels.has(query_id)) qrels.set(query_id, new Map());

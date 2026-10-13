@@ -1,5 +1,6 @@
 import { hybridSearch, WEAK_MATCH, type Chunk } from "./search";
 import { bm25Scores, buildBm25, type Bm25Index } from "./bm25";
+import { decodeNumericEntities } from "./text";
 
 interface Manifest { model: string; dtype: string; dim: number; count: number; from: string; to: string; house: string; source: string }
 
@@ -14,13 +15,21 @@ let modelReady = false;
 let indexReady = false;
 let failure: string | null = null; // once set, the message stays visible and search is disabled
 const ready = () => modelReady && indexReady && !failure;
-const fail = (msg: string) => { failure = msg; $("#status").textContent = msg; };
 let nextId = 1;
+let searchVersion = 0;
 const pending = new Map<number, { ok: (v: Float32Array) => void; err: (e: Error) => void }>();
+const fail = (msg: string) => {
+  failure = msg;
+  searchVersion++;
+  $("#status").textContent = msg;
+  for (const request of pending.values()) request.err(new Error(msg));
+  pending.clear();
+};
 
 const worker = new Worker(new URL("./embed-worker.ts", import.meta.url), { type: "module" });
 worker.onmessage = (e: MessageEvent) => {
   const m = e.data;
+  if (failure) return;
   if (m.type === "progress") $("#status").textContent = `Downloading model… ${Math.round(m.progress)}%`;
   else if (m.type === "ready") { modelReady = true; performance.mark("model-ready"); announce(); }
   else if (m.type === "embedding") { pending.get(m.id)?.ok(m.vector); pending.delete(m.id); }
@@ -30,6 +39,7 @@ worker.onmessage = (e: MessageEvent) => {
   }
 };
 worker.onerror = (e) => fail(`The search worker crashed: ${e.message || "unknown error"}`);
+worker.onmessageerror = () => fail("The search worker returned unreadable data. Reload the page to retry.");
 function announce(): void {
   if (ready()) $("#status").textContent = `${chunks.length.toLocaleString()} passages ready`;
 }
@@ -60,7 +70,7 @@ async function init(): Promise<void> {
   announce();
 }
 
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+const esc = (s: string) => decodeNumericEntities(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 const SOURCE: Record<string, string> = {
   both: "Found by both meaning and keyword ranking",
@@ -69,13 +79,18 @@ const SOURCE: Record<string, string> = {
 };
 
 async function search(q: string): Promise<void> {
-  if (!q.trim()) return;
+  const version = ++searchVersion;
   if (failure) { $("#status").textContent = failure; return; }
+  if (!q.trim()) { $("#results").replaceChildren(); announce(); return; }
   if (!ready()) { $("#status").textContent = "Still loading the model and index…"; return; }
   const party = $<HTMLSelectElement>("#party").value;
   const t0 = performance.now();
   let qv: Float32Array;
-  try { qv = await embed(q); } catch (e) { $("#status").textContent = `Search failed: ${(e as Error).message}`; return; }
+  try { qv = await embed(q); } catch (e) {
+    if (version === searchVersion && !failure) $("#status").textContent = `Search failed: ${(e as Error).message}`;
+    return;
+  }
+  if (version !== searchVersion || failure) return;
   const t1 = performance.now();
   const { hits, bestCosine } = hybridSearch(qv, index, manifest.dim, bm25Scores(keywords, q), 8, party ? (i) => chunks[i]!.party === party : undefined);
   const t2 = performance.now();

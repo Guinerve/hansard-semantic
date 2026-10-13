@@ -2,80 +2,100 @@
 
 > Search Parliament by meaning, entirely in the browser, with no server.
 
-**Status:** v0.1 core built; search verified end-to-end in real Chrome
+[![CI](https://github.com/Guinerve/hansard-semantic/actions/workflows/ci.yml/badge.svg)](https://github.com/Guinerve/hansard-semantic/actions/workflows/ci.yml)
 
-![hansard-semantic demo](assets/demo.gif)
+**v0.2:** MiniLM semantic search plus BM25 keyword ranking, a weak-match notice, a 50-query evaluation, and a browser benchmark.
 
 ![hansard-semantic screenshot](assets/screenshot.png)
 
-## The idea
+## What it searches
 
-A static GitHub Pages site with precomputed embeddings for a slice of Hansard (e.g. one year of energy-policy speeches). Queries are embedded in the browser with transformers.js, so nothing leaves the user's device.
+3,430 energy-related passages from House of Representatives Hansard, covering 85 sitting days from **2025-07-01 to 2026-09-17**. Each result has a speaker, date, party, electorate, and source link. A party filter applies to both ranking lists.
+
+The browser embeds your query with `Xenova/all-MiniLM-L6-v2` (q8). It searches the precomputed int8 vectors and a local BM25 index, then combines their top-100 lists with reciprocal-rank fusion. Result scores are embedding cosine similarities, not relevance probabilities. The labels `both`, `meaning`, and `keywords` show which lists found each passage.
+
+Queries stay on your device. The first visit downloads the model and runtime files. There is no search API or application server.
 
 ## Stack
 
-Python precompute (OpenAustralia API, sentence embeddings); TypeScript, Vite, transformers.js front end.
+TypeScript, Vite, transformers.js, Vitest. A Node script fetches OpenAustralia's public scraped XML and builds the index. No API key is needed. The builder and browser use the same tokenizer, model, quantisation, and mean pooling.
 
-Dev server binds to `0.0.0.0` on port **5193** so it's reachable over Tailscale (`vite --host 0.0.0.0 --port 5193 --strictPort`). Deploy to GitHub Pages.
-
-## Build plan (v1)
-
-- [x] Fetch and chunk speeches: **House of Reps, 2025-07-01 to 2026-09-17, 85 sitting days, energy-related only → 3,430 passages.** Uses OpenAustralia's public scraped XML (`data.openaustralia.org.au`), so **no API key is needed**.
-- [x] Precompute embeddings with the same model used in the browser (`Xenova/all-MiniLM-L6-v2`, q8) → 1.3 MB int8 index + 4.3 MB text (1.2 MB gzipped). Done in **Node with transformers.js**, not Python, so the tokenizer and model are identical to the browser's. with the same model used in the browser; ship a compact index
-- [ ] (partly done) In-browser query embedding and cosine search (Web Worker): verified in Chrome (see below).
-- [x] Results with speaker, date, party, electorate and a link to the source, plus a party filter
+Node **22.18 or later** is required. The dev and preview servers bind to `0.0.0.0:5193` with `--strictPort`. The production build is a static site. This repository remains private; no public deployment is claimed.
 
 ## Run it
 
+The index is included. You do not need to rebuild it to run the app.
+
 ```bash
-npm install
-npm run index    # rebuild the index (cached raw XML in data/)
-npm run dev      # http://0.0.0.0:5193
-npm test         # 3 tests; downloads the model on first run
+npm ci
+npm run dev      # http://<your-host>:5193
+npm test         # 16 tests; downloads the model on first run
+npm run build    # type check and static build in dist/
 ```
+
+## Reproduce the evaluation
+
+```bash
+npm run eval                  # MiniLM, BM25, and the shipped hybrid
+npm run build
+npm run bench -- --throttle    # Chrome; temporary preview server on port 5294
+npm run label                 # human review at http://<your-host>:5293/label.html
+```
+
+`npm run eval` writes [`eval/RESULTS.md`](eval/RESULTS.md) and machine-readable results. `npm run bench` writes [`eval/BROWSER.md`](eval/BROWSER.md) and raw browser measurements. Set `CHROME_PATH` if Chrome is not in a standard location. Ports 5293 and 5294 must be free before their servers start.
+
+The labelling page reads the committed judgments without a new pool. It records a judgment as `human` only when a person saves it. It accepts same-origin JSON writes and known query/passage IDs. Run it on a trusted network and stop it after review.
+
+Optional, slower rebuilds:
+
+```bash
+npm run index                 # refetch/chunk/embed; raw XML cached in data/
+npm run pool                  # add pools from all systems, including BGE and GTE
+npm run eval -- --systems minilm,bge-small,gte-small,bm25,hybrid-minilm,hybrid-bge
+```
+
+Alternative models download their own weights and embed the corpus on the first run. After changing the corpus or pool, review the labels before comparing scores. The committed report does not claim a measured comparison with BGE or GTE.
 
 ## How I know it's right
 
-3 tests (`src/search.test.ts`):
+16 tests in `src/search.test.ts`, `src/ranking.test.ts`, and `src/text.test.ts` check index integrity, embedding parity, semantic and keyword ranking, fusion, party predicates, empty input, zero-result requests, and XML entity decoding. Re-embedding stored passages must give cosine > 0.98. The older 12-query keyword smoke check still passes, but it is not a relevance benchmark.
 
-- Index integrity: one unit-norm vector per passage.
-- Embedding parity: re-embedding stored passages reproduces the stored vectors (cosine > 0.98; measured worst 0.995 on macOS, 0.989 on Linux CI).
-- **Hit rate: 12 / 12 hand-written queries return a matching passage in the top 5** (`data/eval-results.txt`).
+The harder evaluation has **50 queries and 1,487 pooled judgments**, including paraphrases, negation, known items, and out-of-scope questions. **All judgments are unreviewed `model-draft` labels.** Treat the results as exploratory, not independent validation.
 
-**How much that proves:** a "hit" means one of the top 5 passages contains a required keyword (e.g. the query "building nuclear power stations" must return a passage mentioning *nuclear*). The corpus is already energy-filtered, so this is a lenient check and 12/12 is not impressive. A harder set (queries with no shared keywords, paraphrases, expected specific speeches) is the next step.
+| Ranker | nDCG@10 | P@5 | Negation: wrong-stance share |
+|---|---:|---:|---:|
+| MiniLM alone | 0.588 | 0.660 | 0.455 |
+| BM25 alone | 0.558 | 0.651 | 0.231 |
+| Shipped hybrid | 0.659 | 0.728 | 0.334 |
 
-Review fixes: the search is gated on both the model and the index; load, worker and fetch failures stay visible instead of "loading…"; the index builder refuses to overwrite with an empty result; the test writes `data/` itself so CI works on a fresh checkout.
-
-Browser/Node parity: see the browser check below.
-
-## Limits
-
-The production bundle includes the onnxruntime WASM (~27 MB, ~6.8 MB gzipped), and the first visit downloads the ~25 MB model from Hugging Face. Energy-related speeches were selected by keyword (≥3 hits in a passage, or an energy heading), so the slice has gaps.
-
-One corpus slice; model size and index size trade off against load time.
+The hybrid's paired nDCG@10 difference is +0.071 (95% bootstrap interval 0.01–0.12). It still regresses on some queries. Known-item retrieval finds 3 of 6 targets in the top 10, versus 4 of 6 for MiniLM alone. The weak-match threshold, cosine < 0.3, was selected on this same set. It flags all 3 no-answer queries and 2 of 47 answerable queries.
 
 ## Browser check
 
-Checked in real Chrome (headless, driven with puppeteer) on 2026-10-12: the model downloads and loads in a Web Worker, the index loads (3,430 passages, party filter populated), and a query returns 8 results in ~30 ms. **Browser/Node parity confirmed in practice**: for two queries the browser's top results and scores match Node's (scores within 0.01, same passages).
+The [50-query production benchmark](eval/BROWSER.md) records cold/warm model loads, network bytes, query times, heap use, and browser/Node differences. The browser and Node need not produce identical rankings: small q8 cosine differences reorder near-ties before fusion.
 
-**Quality caveat:** this small model ignores negation. "Why nuclear is not the answer" returns passages about nuclear power in general, top score only 0.42. Consider a larger model or a hybrid keyword + semantic rank.
+Additional Playwright checks on 2026-10-13 confirmed 8-result searches, party filtering, weak-match notices, clearing an empty search, and no horizontal overflow at 390 px. A delayed old query cannot overwrite a newer one. An injected worker crash stays visible even if a late download-progress message arrives.
 
-## Next (tomorrow)
+Passage display decodes numeric XML entities before HTML escaping. The stored text and vectors are unchanged, so the published ranking results still describe the shipped index. The index builder also decodes hexadecimal entities for future rebuilds.
 
-- Harder evaluation set; try a bigger model (bge-small) if hit quality is poor.
-- Decide on index size vs. coverage (widen the date range).
+## Limits
 
-## Stretch
+- Negation and political stance are not reliable. Read the passage and its source before drawing a conclusion.
+- The corpus is an energy-keyword slice, not all of Parliament. Speeches can contain unrelated topics. The filter has gaps.
+- The int8 vectors are about 1.3 MB. Passage text is about 4.3 MB uncompressed. The production runtime includes about 27 MB of WASM, and the first visit downloads about 25 MB of model weights.
+- The relevance labels need human review. Recall is relative to pooled judgments, not every relevant passage in the corpus. The confidence intervals do not account for label error.
 
-Hybrid keyword + semantic ranking; topic timeline view.
+## Release checklist
 
-## Definition of done
+- [x] Current screenshot and one-command run
+- [x] Browser query embedding in a Web Worker and hybrid ranking
+- [x] Reproducible tests, evaluation, benchmark, and stated limits
+- [x] CI test/build workflow and badge
+- [x] MIT code licence, repository description, and topics
 
-- [x] Hero GIF or screenshot at the top of this README
-- [x] Live demo link or one-command run (`npm install && npm run dev`)
-- [ ] "How I know it's right" section filled in with real results
-- [ ] Tests passing in CI, badge added
-- [ ] "Limits" section written
-- [ ] Licence chosen, repo description and topics set
-- [ ] Pinned on GitHub profile and added to guinerve.github.io
-- [ ] Added to `career-radar/data/cv/portfolio.json`
+## Follow-up
+
+- Human-review the relevance labels with `npm run label`.
+- Compare larger models after review. Broaden corpus coverage only with a new evaluation.
+- Refresh the v0.1 demo GIF if needed; the screenshot above is the current UI.
+- Pin the repository and add it to `guinerve.github.io` and `career-radar/data/cv/portfolio.json`.

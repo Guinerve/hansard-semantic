@@ -1,13 +1,14 @@
 // Relevance-labelling page (dev only, `npm run label`). Shows each query's pooled passages in id order and saves
 // grades through the label server, which records them in eval/qrels.tsv as human judgments.
 import type { Chunk } from "./search";
+import { decodeNumericEntities } from "./text";
 
 interface Query { id: string; category: string; query: string; need: string; target?: string }
 interface Item { id: string; grade?: number; stance?: string; judge?: string }
 interface Data { queries: Query[]; items: Record<string, Item[]>; passages: Record<string, Chunk>; pooled: boolean }
 
 const $ = <T extends Element>(s: string) => document.querySelector<T>(s)!;
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+const esc = (s: string) => decodeNumericEntities(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 const GRADES = ["0 · not relevant", "1 · partly", "2 · answers it"];
 
 let data: Data;
@@ -46,11 +47,12 @@ function renderPane(): void {
 }
 
 async function judge(id: string, grade: number, stance: "" | "opposite"): Promise<void> {
-  const r = await fetch("/__label/judge", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query_id: current, passage_id: id, grade, stance }) });
+  const queryId = current;
+  const r = await fetch("/__label/judge", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query_id: queryId, passage_id: id, grade, stance }) });
   if (!r.ok) { alert(`Save failed: ${(await r.json()).error}`); return; }
-  const it = data.items[current]!.find((x) => x.id === id)!;
+  const it = data.items[queryId]!.find((x) => x.id === id)!;
   Object.assign(it, { grade, stance, judge: "human" });
-  if (!$<HTMLInputElement>("#todo").checked) focus++;
+  if (queryId === current && !$<HTMLInputElement>("#todo").checked) focus++;
   renderProgress(); renderPane();
 }
 

@@ -21,6 +21,7 @@ export function topK(
   k: number,
   accept: (i: number) => boolean = () => true,
 ): { i: number; score: number }[] {
+  if (k <= 0) return [];
   const n = index.length / dim;
   const best: { i: number; score: number }[] = [];
   for (let i = 0; i < n; i++) {
@@ -62,7 +63,7 @@ export interface HybridHit {
 
 /**
  * The shipped ranker: fuse the embedding ranking with a BM25 keyword ranking (top 100 of each) by reciprocal rank.
- * Measured on the labelled set it beats embeddings alone (eval/RESULTS.md).
+ * On the model-draft labels it improves mean nDCG@10, but regresses on some queries (eval/RESULTS.md).
  */
 export function hybridSearch(
   query: Float32Array,

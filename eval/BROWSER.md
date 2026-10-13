@@ -5,17 +5,17 @@ Measured 2026-10-13 by `npm run bench` on Google Chrome 155.0.8059.40 (headless)
 | | Cold (empty cache) | Warm (reload, same profile) |
 |---|---|---|
 | Index ready (passages + vectors loaded, BM25 built) | 0.2 s | 0.1 s |
-| Model ready (search usable) | 8.5 s | 0.3 s |
+| Model ready (search usable) | 8.3 s | 0.3 s |
 | Transferred | 127.0.0.1:5294 2.1 MB, huggingface.co 0.2 MB, us.aws.cdn.hf.co 23.0 MB, cdn.jsdelivr.net 5.6 MB | ≈0 (all cached) |
-| Model ready on Chrome's "Fast 4G" preset (cold) | 33.0 s | – |
+| Model ready on Chrome's "Fast 4G" preset (cold) | 32.9 s | – |
 
 Per query, over all 50 labelled queries typed into the search box (after one warm-up query):
 
 | | p50 | p95 | max |
 |---|---:|---:|---:|
-| Embed query (Web Worker, q8 MiniLM) | 15.6 ms | 22.7 ms | 23.5 ms |
-| Rank (cosine over 3,430 vectors + BM25 + fusion) | 1.6 ms | 2.1 ms | 2.8 ms |
-| Total | 17.3 ms | 24.3 ms | |
+| Embed query (Web Worker, q8 MiniLM) | 15.3 ms | 15.8 ms | 17.7 ms |
+| Rank (cosine over 3,430 vectors + BM25 + fusion) | 1.5 ms | 1.9 ms | 3.0 ms |
+| Total | 16.8 ms | 18.3 ms | |
 
 Memory after the queries: main-thread JS heap 20.6 MB, worker JS heap 7.3 MB (the ONNX model weights live in WASM memory, which this does not count).
 

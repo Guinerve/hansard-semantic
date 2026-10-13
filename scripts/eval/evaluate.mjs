@@ -8,7 +8,7 @@ import { readQrels } from "./qrels.mjs";
 import { WEAK_MATCH } from "../../src/search.ts";
 
 const at = process.argv.indexOf("--systems");
-const systemNames = at < 0 ? Object.keys(SYSTEMS) : process.argv[at + 1].split(",");
+const systemNames = at < 0 ? ["minilm", "bm25", "hybrid-minilm"] : process.argv[at + 1].split(",");
 for (const s of systemNames) if (!SYSTEMS[s]) throw new Error(`unknown system ${s}`);
 
 const queries = JSON.parse(readFileSync("eval/queries.json", "utf8"));
@@ -136,6 +136,7 @@ const judges = new Map();
 for (const m of qrels.values()) for (const j of m.values()) judges.set(j.judge, (judges.get(j.judge) ?? 0) + 1);
 const lines = [];
 lines.push(`# Retrieval evaluation`, ``, `Generated ${results.generated} by \`npm run eval\`. ${queries.length} queries (${ans.length} with at least one relevant passage), ${[...qrels.values()].reduce((s, m) => s + m.size, 0)} judgments (${[...judges].map(([k, v]) => `${v} ${k}`).join(", ")}).`, ``);
+if (judges.has("model-draft")) lines.push(`The model-draft labels have not been reviewed by a human. These scores are exploratory results, not an independent relevance benchmark.`, ``);
 lines.push(`## nDCG@10 by query type`, ``, `| System | ${CATS.join(" | ")} | All (95% CI) | Δ vs minilm (95% CI) |`, `|---|${CATS.map(() => "---:").join("|")}|---:|---:|`);
 for (const name of systemNames) {
   const s = results.systems[name];
@@ -151,7 +152,8 @@ if (noAns.length) {
   lines.push(``, `## Can the score tell when there is no answer?`, ``, `${noAns.length} queries have no relevant passage at all (${noAns.map((q) => `\`${q.id}\``).join(", ")}). AUC = probability that an answerable query's top-1 score beats an unanswerable one's (1.0 = a threshold separates them perfectly; 0.5 = no signal). Only meaningful for cosine-scored systems.`, ``, `| System | AUC (no answer) | AUC (8 out-of-scope queries) | Mean top-1 (answerable) | Mean top-1 (no answer) | Highest top-1 with no answer | Lowest top-1 with an answer |`, `|---|---:|---:|---:|---:|---:|---:|`);
   for (const name of systemNames) {
     const s = results.systems[name].separation;
-    lines.push(`| ${label(name)} | ${f(s.auc)} | ${f(s.outOfScopeAuc)} | ${f(s.answerableTop1)} | ${f(s.unanswerableTop1)} | ${f(s.maxUnanswerableTop1)} | ${f(s.minAnswerableTop1)} |`);
+   if (name === "bm25") lines.push(`| ${label(name)} | – | – | – | – | – | – |`);
+   else lines.push(`| ${label(name)} | ${f(s.auc)} | ${f(s.outOfScopeAuc)} | ${f(s.answerableTop1)} | ${f(s.unanswerableTop1)} | ${f(s.maxUnanswerableTop1)} | ${f(s.minAnswerableTop1)} |`);
   }
   const w = results.systems[SHIPPED]?.separation?.weakFlagged;
   if (w) lines.push(``, `The site shows a "weak matches only" notice when the best cosine is below ${WEAK_MATCH}. On this set that flags ${w.unanswerable} of ${noAns.length} no-answer queries and ${w.answerable.length} of ${ans.length} answerable ones${w.answerable.length ? ` (${w.answerable.map((x) => `\`${x}\``).join(", ")})` : ""}. The threshold was chosen on this same set, so expect it to be slightly optimistic. Hybrid systems report the best embedding cosine in the collection here (what the site checks), not the fused score.`);
