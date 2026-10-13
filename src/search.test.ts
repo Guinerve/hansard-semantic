@@ -1,7 +1,8 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { pipeline } from "@huggingface/transformers";
-import { topK, type Chunk } from "./search";
+import { hybridSearch, topK, type Chunk } from "./search";
+import { bm25Scores, buildBm25 } from "./bm25";
 
 const manifest = JSON.parse(readFileSync("public/index/manifest.json", "utf8"));
 const chunks: Chunk[] = JSON.parse(readFileSync("public/index/chunks.json", "utf8"));
@@ -67,5 +68,47 @@ describe("search quality (keyword-checked)", () => {
     mkdirSync("data", { recursive: true });
     writeFileSync("data/eval-results.txt", `${hits}/${QUERIES.length} top-5 hits\n${rows.join("\n")}\n`);
     expect(hits / QUERIES.length).toBeGreaterThanOrEqual(0.75);
+  }, 180_000);
+});
+
+// The labelled set (eval/queries.json + eval/qrels.tsv). Labels are pooled judgments; see eval/RESULTS.md.
+const labelQueries: { id: string; query: string; target?: string }[] = JSON.parse(readFileSync("eval/queries.json", "utf8"));
+const qrels = new Map<string, Map<string, number>>();
+for (const line of readFileSync("eval/qrels.tsv", "utf8").trim().split("\n").slice(1)) {
+  const [q, p, g] = line.split("\t");
+  if (!qrels.has(q!)) qrels.set(q!, new Map());
+  qrels.get(q!)!.set(p!, Number(g));
+}
+
+describe("labelled set", () => {
+  it("is consistent with the index: every judged passage exists and every known-item target is judged relevant", () => {
+    const ids = new Set(chunks.map((c) => c.id));
+    for (const q of labelQueries) {
+      const j = qrels.get(q.id);
+      expect(j, q.id).toBeDefined();
+      for (const [p, g] of j!) {
+        expect(ids.has(p), `${q.id} → ${p}`).toBe(true);
+        expect([0, 1, 2]).toContain(g);
+      }
+      if (q.target) expect(j!.get(q.target), q.target).toBe(2);
+    }
+  });
+
+  it("shipped hybrid ranking keeps nDCG@10 above the regression floor", async () => {
+    const keywords = buildBm25(chunks.map((c) => c.text));
+    const gain = (g: number) => 2 ** g - 1;
+    const scores: number[] = [];
+    for (const q of labelQueries) {
+      const j = qrels.get(q.id)!;
+      const ideal = [...j.values()].sort((a, b) => b - a).slice(0, 10);
+      const idcg = ideal.reduce((s, g, r) => s + gain(g) / Math.log2(r + 2), 0);
+      if (!idcg) continue; // no relevant passage: nothing to rank
+      const { hits } = hybridSearch(await embed(q.query), index, dim, bm25Scores(keywords, q.query), 10);
+      const dcg = hits.reduce((s, h, r) => s + gain(j.get(chunks[h.i]!.id) ?? 0) / Math.log2(r + 2), 0);
+      scores.push(dcg / idcg);
+    }
+    const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+    // Measured 0.659 on macOS (npm run eval). The floor leaves room for CI's different q8 kernels.
+    expect(mean).toBeGreaterThan(0.62);
   }, 180_000);
 });

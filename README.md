@@ -58,7 +58,7 @@ Alternative models download their own weights and embed the corpus on the first 
 
 ## How I know it's right
 
-16 tests in `src/search.test.ts`, `src/ranking.test.ts`, and `src/text.test.ts` check index integrity, embedding parity, semantic and keyword ranking, fusion, party predicates, empty input, zero-result requests, and XML entity decoding. Re-embedding stored passages must give cosine > 0.98. The older 12-query keyword smoke check still passes, but it is not a relevance benchmark.
+18 tests in `src/search.test.ts`, `src/ranking.test.ts`, and `src/text.test.ts` check index integrity, embedding parity, semantic and keyword ranking, fusion, party predicates, empty input, zero-result requests, and XML entity decoding. Two of them guard the labelled set: every judged passage must exist in the index, and the shipped hybrid must keep nDCG@10 above 0.62 (measured 0.659), so a ranking regression fails CI. Re-embedding stored passages must give cosine > 0.98. The older 12-query keyword smoke check still passes, but it is not a relevance benchmark.
 
 The harder evaluation has **50 queries and 1,487 pooled judgments**, including paraphrases, negation, known items, and out-of-scope questions. **All judgments are unreviewed `model-draft` labels.** Treat the results as exploratory, not independent validation.
 
@@ -82,7 +82,7 @@ Passage display decodes numeric XML entities before HTML escaping. The stored te
 
 - Negation and political stance are not reliable. Read the passage and its source before drawing a conclusion.
 - The corpus is an energy-keyword slice, not all of Parliament. Speeches can contain unrelated topics. The filter has gaps.
-- The int8 vectors are about 1.3 MB. Passage text is about 4.3 MB uncompressed. The production runtime includes about 27 MB of WASM, and the first visit downloads about 25 MB of model weights.
+- The int8 vectors are about 1.3 MB. Passage text is about 4.3 MB uncompressed. The first visit downloads about 23 MB of model weights from Hugging Face and the ONNX Runtime WASM (5.6 MB compressed) from jsDelivr; both are cached afterwards. `dist/` also contains a 27 MB copy of that WASM which the page never requests (measured in [eval/BROWSER.md](eval/BROWSER.md)), so the deployed site depends on those two third-party hosts.
 - The relevance labels need human review. Recall is relative to pooled judgments, not every relevant passage in the corpus. The confidence intervals do not account for label error.
 
 ## Release checklist
