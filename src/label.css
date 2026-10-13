@@ -12,7 +12,7 @@ kbd, code { font: 12px ui-monospace, monospace; background: var(--card); border:
 .result.focus { outline: 2px solid var(--accent); }
 .judge { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
 .judge button { background: var(--card); color: var(--fg); border-color: var(--line); font-size: 12px; padding: 4px 10px; }
-.judge button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.judge button.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 .who { font: 11px system-ui, sans-serif; color: var(--muted); margin-left: auto; }
 .who.human { color: var(--accent); }
 @media (max-width: 720px) { .layout { grid-template-columns: 1fr; } #queries { position: static; flex-direction: row; overflow-x: auto; max-height: none; } #queries button { flex: none; white-space: nowrap; } }
