@@ -2,6 +2,8 @@
 
 Search Australian House of Representatives energy debates by meaning. The search runs in your browser, with no search server.
 
+**[Try the live search](https://guinerve.github.io/demos/hansard-semantic/)**. The first search downloads a 23 MB model.
+
 [![CI](https://github.com/Guinerve/hansard-semantic/actions/workflows/ci.yml/badge.svg)](https://github.com/Guinerve/hansard-semantic/actions/workflows/ci.yml)
 
 ![The search page with the query "worry about the cost of new transmission lines" and its first two results](assets/screenshot.png)
