@@ -1,5 +1,5 @@
-// Build judgment pools (TREC-style): the union of every system's top-N for each query, minus passages already judged.
-// Writes data/pool.json for the labelling page (npm run label) and prints how many passages still need a judgment.
+// Build judgment pools (TREC-style): the union of every system's top-N for each query, plus any known-item target.
+// Writes data/pool.json for the labelling page (npm run label) and prints how many pooled passages still need a judgment.
 //
 //   node scripts/eval/pool.mjs [--depth 10]
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";

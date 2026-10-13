@@ -1,6 +1,7 @@
-import { hybridSearch, WEAK_MATCH, type Chunk } from "./search";
+import { hybridSearch, type Chunk } from "./search";
 import { bm25Scores, buildBm25, type Bm25Index } from "./bm25";
-import { decodeNumericEntities } from "./text";
+import { renderResults } from "./render";
+import { escapeHtml as esc } from "./text";
 
 interface Manifest { model: string; dtype: string; dim: number; count: number; from: string; to: string; house: string; source: string }
 
@@ -70,14 +71,6 @@ async function init(): Promise<void> {
   announce();
 }
 
-const esc = (s: string) => decodeNumericEntities(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-
-const SOURCE: Record<string, string> = {
-  both: "Found by both meaning and keyword ranking",
-  meaning: "Found by meaning (embedding) ranking only",
-  keywords: "Found by keyword (BM25) ranking only",
-};
-
 async function search(q: string): Promise<void> {
   const version = ++searchVersion;
   if (failure) { $("#status").textContent = failure; return; }
@@ -97,16 +90,7 @@ async function search(q: string): Promise<void> {
   performance.measure("embed", { start: t0, end: t1 });
   performance.measure("rank", { start: t1, end: t2 });
   $("#status").textContent = `${hits.length} results in ${(t2 - t0).toFixed(0)} ms`;
-  const weak = hits.length && bestCosine < WEAK_MATCH
-    ? `<p class="notice" role="note">Weak matches only (best similarity ${bestCosine.toFixed(2)}). This collection covers energy debates in the House of Representatives, so your topic may not be here.</p>`
-    : "";
-  $("#results").innerHTML = weak + hits.map(({ i, cosine, denseRank, keywordRank }) => {
-    const c = chunks[i]!;
-    const source = denseRank && keywordRank ? "both" : denseRank ? "meaning" : "keywords";
-    return `<article class="result" data-id="${esc(c.id)}"><span class="score" title="Similarity between your query and this passage (embedding cosine). ${SOURCE[source]}.">${cosine.toFixed(2)} · ${source}</span><h3>${esc(c.speaker)}</h3>
-      <div class="meta">${esc(c.party || "—")}${c.division ? ` · ${esc(c.division)}` : ""} · ${c.date} · ${esc(c.heading)}</div>
-      <p>${esc(c.text)}</p><a href="${c.url}" target="_blank" rel="noopener">Read in context ↗</a></article>`;
-  }).join("");
+  $("#results").innerHTML = renderResults(hits, chunks, bestCosine);
 }
 
 const EXAMPLES = [

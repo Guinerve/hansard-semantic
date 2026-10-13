@@ -1,14 +1,13 @@
 // Relevance-labelling page (dev only, `npm run label`). Shows each query's pooled passages in id order and saves
 // grades through the label server, which records them in eval/qrels.tsv as human judgments.
 import type { Chunk } from "./search";
-import { decodeNumericEntities } from "./text";
+import { escapeHtml as esc } from "./text";
 
 interface Query { id: string; category: string; query: string; need: string; target?: string }
 interface Item { id: string; grade?: number; stance?: string; judge?: string }
 interface Data { queries: Query[]; items: Record<string, Item[]>; passages: Record<string, Chunk>; pooled: boolean }
 
 const $ = <T extends Element>(s: string) => document.querySelector<T>(s)!;
-const esc = (s: string) => decodeNumericEntities(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 const GRADES = ["0 · not relevant", "1 · partly", "2 · answers it"];
 
 let data: Data;
@@ -25,7 +24,7 @@ function renderProgress(): void {
   $("#queries").innerHTML = data.queries.map((q) => {
     const its = data.items[q.id]!;
     const left = its.filter((it) => !isHuman(it)).length;
-    return `<button type="button" data-q="${q.id}" class="${q.id === current ? "on" : ""}">${esc(q.id)}<small>${left ? `${left} to review` : "done"}</small></button>`;
+    return `<button type="button" data-q="${esc(q.id)}" class="${q.id === current ? "on" : ""}">${esc(q.id)}<small>${left ? `${left} to review` : "done"}</small></button>`;
   }).join("");
 }
 
@@ -41,15 +40,23 @@ function renderPane(): void {
         <div class="judge">${GRADES.map((g, k) => `<button type="button" data-grade="${k}" class="${grade === k && !(k === 0 && it.stance === "opposite") ? "on" : ""}">${g}</button>`).join("")}
           ${q.category === "negation" ? `<button type="button" data-grade="opp" class="${it.stance === "opposite" ? "on" : ""}">0 · opposite side</button>` : ""}
           <span class="who ${isHuman(it) ? "human" : ""}">${it.judge ? (isHuman(it) ? "human" : `draft (${esc(it.judge)})`) : "unjudged"}</span></div>
-        <h3>${esc(c.speaker)}</h3><div class="meta">${esc(c.party || "—")} · ${c.date} · ${esc(c.heading)} · ${esc(c.id)}</div><p>${esc(c.text)}</p></article>`;
+        <h3>${esc(c.speaker)}</h3><div class="meta">${esc(c.party || "—")} · ${esc(c.date)} · ${esc(c.heading)} · ${esc(c.id)}</div><p>${esc(c.text)}</p></article>`;
     }).join("") : `<p class="notice">Nothing left to review for this query.</p>`);
   $(".result.focus")?.scrollIntoView({ block: "nearest" });
 }
 
 async function judge(id: string, grade: number, stance: "" | "opposite"): Promise<void> {
   const queryId = current;
-  const r = await fetch("/__label/judge", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query_id: queryId, passage_id: id, grade, stance }) });
-  if (!r.ok) { alert(`Save failed: ${(await r.json()).error}`); return; }
+  try {
+    const r = await fetch("/__label/judge", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query_id: queryId, passage_id: id, grade, stance }) });
+    if (!r.ok) {
+      const reason = await r.json().then((b: { error?: string }) => b.error, () => undefined);
+      throw new Error(reason ?? `HTTP ${r.status}`);
+    }
+  } catch (e) {
+    alert(`Save failed, so this judgment was not recorded: ${(e as Error).message}`);
+    return;
+  }
   const it = data.items[queryId]!.find((x) => x.id === id)!;
   Object.assign(it, { grade, stance, judge: "human" });
   if (queryId === current && !$<HTMLInputElement>("#todo").checked) focus++;
@@ -75,5 +82,5 @@ document.addEventListener("keydown", (e) => {
   else if (it && e.key === "Enter" && it.grade !== undefined) void judge(it.id, it.grade, (it.stance as "" | "opposite") ?? "");
 });
 
-fetch("/__label/data").then((r) => r.json()).then((d: Data) => { data = d; select(d.queries[0]!.id); })
+fetch("/__label/data").then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then((d: Data) => { data = d; select(d.queries[0]!.id); })
   .catch((e) => { $("#progress").textContent = `Could not load labelling data: ${e}. Start it with npm run label.`; });
