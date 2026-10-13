@@ -1,4 +1,5 @@
-import { topK, type Chunk } from "./search";
+import { hybridSearch, WEAK_MATCH, type Chunk } from "./search";
+import { bm25Scores, buildBm25, type Bm25Index } from "./bm25";
 
 interface Manifest { model: string; dtype: string; dim: number; count: number; from: string; to: string; house: string; source: string }
 
@@ -8,6 +9,7 @@ const base = import.meta.env.BASE_URL;
 let manifest: Manifest;
 let chunks: Chunk[] = [];
 let index: Int8Array;
+let keywords: Bm25Index;
 let modelReady = false;
 let indexReady = false;
 let failure: string | null = null; // once set, the message stays visible and search is disabled
@@ -20,7 +22,7 @@ const worker = new Worker(new URL("./embed-worker.ts", import.meta.url), { type:
 worker.onmessage = (e: MessageEvent) => {
   const m = e.data;
   if (m.type === "progress") $("#status").textContent = `Downloading model… ${Math.round(m.progress)}%`;
-  else if (m.type === "ready") { modelReady = true; announce(); }
+  else if (m.type === "ready") { modelReady = true; performance.mark("model-ready"); announce(); }
   else if (m.type === "embedding") { pending.get(m.id)?.ok(m.vector); pending.delete(m.id); }
   else if (m.type === "error") {
     if (m.id !== undefined && pending.has(m.id)) { pending.get(m.id)!.err(new Error(m.message)); pending.delete(m.id); }
@@ -48,15 +50,23 @@ async function init(): Promise<void> {
   ]);
   chunks = c; index = new Int8Array(buf);
   if (index.length !== chunks.length * manifest.dim) throw new Error("index and passages do not match (corrupt or mixed build)");
+  keywords = buildBm25(chunks.map((x) => x.text)); // keyword half of the hybrid ranking, built locally (~50 ms)
   indexReady = true;
+  performance.mark("index-ready");
   const parties = [...new Set(chunks.map((x) => x.party).filter(Boolean))].sort();
   const sel = $<HTMLSelectElement>("#party");
   parties.forEach((p) => sel.add(new Option(p, p)));
-  $("#foot").textContent = `${manifest.house} Hansard, ${manifest.from} to ${manifest.to}, energy-related speeches only (${manifest.count.toLocaleString()} passages). Model: ${manifest.model} (${manifest.dtype}) running locally. Source: ${manifest.source}. Built ${(manifest as Manifest & { built?: string }).built ?? ""}.`;
+  $("#foot").textContent = `${manifest.house} Hansard, ${manifest.from} to ${manifest.to}, energy-related speeches only (${manifest.count.toLocaleString()} passages). Ranking: ${manifest.model} (${manifest.dtype}) embeddings running locally, fused with BM25 keyword scores. Source: ${manifest.source}. Built ${(manifest as Manifest & { built?: string }).built ?? ""}.`;
   announce();
 }
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+
+const SOURCE: Record<string, string> = {
+  both: "Found by both meaning and keyword ranking",
+  meaning: "Found by meaning (embedding) ranking only",
+  keywords: "Found by keyword (BM25) ranking only",
+};
 
 async function search(q: string): Promise<void> {
   if (!q.trim()) return;
@@ -66,11 +76,19 @@ async function search(q: string): Promise<void> {
   const t0 = performance.now();
   let qv: Float32Array;
   try { qv = await embed(q); } catch (e) { $("#status").textContent = `Search failed: ${(e as Error).message}`; return; }
-  const hits = topK(qv, index, manifest.dim, 8, party ? (i) => chunks[i]!.party === party : undefined);
-  $("#status").textContent = `${hits.length} results in ${(performance.now() - t0).toFixed(0)} ms`;
-  $("#results").innerHTML = hits.map(({ i, score }) => {
+  const t1 = performance.now();
+  const { hits, bestCosine } = hybridSearch(qv, index, manifest.dim, bm25Scores(keywords, q), 8, party ? (i) => chunks[i]!.party === party : undefined);
+  const t2 = performance.now();
+  performance.measure("embed", { start: t0, end: t1 });
+  performance.measure("rank", { start: t1, end: t2 });
+  $("#status").textContent = `${hits.length} results in ${(t2 - t0).toFixed(0)} ms`;
+  const weak = hits.length && bestCosine < WEAK_MATCH
+    ? `<p class="notice" role="note">Weak matches only (best similarity ${bestCosine.toFixed(2)}). This collection covers energy debates in the House of Representatives, so your topic may not be here.</p>`
+    : "";
+  $("#results").innerHTML = weak + hits.map(({ i, cosine, denseRank, keywordRank }) => {
     const c = chunks[i]!;
-    return `<article class="result"><span class="score">${score.toFixed(2)}</span><h3>${esc(c.speaker)}</h3>
+    const source = denseRank && keywordRank ? "both" : denseRank ? "meaning" : "keywords";
+    return `<article class="result" data-id="${esc(c.id)}"><span class="score" title="Similarity between your query and this passage (embedding cosine). ${SOURCE[source]}.">${cosine.toFixed(2)} · ${source}</span><h3>${esc(c.speaker)}</h3>
       <div class="meta">${esc(c.party || "—")}${c.division ? ` · ${esc(c.division)}` : ""} · ${c.date} · ${esc(c.heading)}</div>
       <p>${esc(c.text)}</p><a href="${c.url}" target="_blank" rel="noopener">Read in context ↗</a></article>`;
   }).join("");

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Relevance Labelling</title>
+  <link rel="stylesheet" href="/src/style.css" />
+  <link rel="stylesheet" href="/src/label.css" />
+</head>
+<body class="label">
+  <header>
+    <h1>Relevance labelling</h1>
+    <p>Judge each passage against the query's guideline. Keys: <kbd>j</kbd>/<kbd>k</kbd> move, <kbd>0</kbd> <kbd>1</kbd> <kbd>2</kbd> grade, <kbd>o</kbd> opposite stance (negation queries), <kbd>Enter</kbd> confirm the current grade. Every click is saved to <code>eval/qrels.tsv</code> as a human judgment.</p>
+    <div class="progress"><span id="progress">Loading…</span><label><input type="checkbox" id="todo" /> Only show passages not yet reviewed by a human</label></div>
+  </header>
+  <div class="layout">
+    <nav id="queries" aria-label="Queries"></nav>
+    <main id="pane"></main>
+  </div>
+  <script type="module" src="/src/label.ts"></script>
+</body>
+</html>
